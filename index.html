@@ -1,7 +1,9 @@
 ﻿<!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>Whisper Live</title>
+  <meta charset="UTF-8" />
+  <title>Whisper Live Voice-to-Text</title>
+
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -9,21 +11,34 @@
       padding: 30px;
     }
 
-    #status {
-      font-size: 18px;
+    h1 {
       color: #1a73e8;
       margin-bottom: 10px;
     }
 
+    button {
+      padding: 10px 18px;
+      font-size: 16px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+
+    #status {
+      margin-top: 15px;
+      font-size: 18px;
+      color: #1a73e8;
+    }
+
     #live {
+      margin-top: 20px;
       font-size: 22px;
       color: #202124;
       min-height: 32px;
-      margin-bottom: 20px;
     }
 
     #history {
-      background: #fff;
+      margin-top: 25px;
+      background: #ffffff;
       padding: 15px;
       border-radius: 8px;
       max-width: 700px;
@@ -33,18 +48,15 @@
       margin-bottom: 8px;
       color: #333;
     }
-
-    button {
-      padding: 10px 18px;
-      font-size: 16px;
-      cursor: pointer;
-      margin-bottom: 20px;
-    }
   </style>
 </head>
 
 <body>
-  <button onclick="start()">🎙 Start Listening</button>
+
+  <h1>🎙 Whisper Live</h1>
+
+  <button onclick="startListening()">Start Listening</button>
+  <button onclick="stopListening()">Stop</button>
 
   <div id="status">Idle</div>
   <div id="live"></div>
@@ -53,39 +65,56 @@
 
   <script>
     let polling = false;
+    let poller = null;
 
-    async function start() {
-      await fetch("http://127.0.0.1:5000/start", { method: "POST" });
+    async function startListening() {
+      if (polling) return;
 
-      document.getElementById("status").textContent = "🎙 Listening...";
-      polling = true;
-
-      setInterval(poll, 800); // Google-like refresh speed
+      try {
+        await fetch("http://127.0.0.1:5000/start", { method: "POST" });
+        document.getElementById("status").textContent = "🎙 Listening...";
+        polling = true;
+        poller = setInterval(pollText, 800);
+      } catch (err) {
+        document.getElementById("status").textContent = "❌ Backend not running";
+      }
     }
 
-    async function poll() {
+    function stopListening() {
+      polling = false;
+      clearInterval(poller);
+      document.getElementById("status").textContent = "Stopped";
+      document.getElementById("live").textContent = "";
+    }
+
+    async function pollText() {
       if (!polling) return;
 
-      const res = await fetch("http://127.0.0.1:5000/poll");
-      const data = await res.json();
+      try {
+        const res = await fetch("http://127.0.0.1:5000/poll");
+        const data = await res.json();
 
-      data.results.forEach(text => {
-        // Show briefly as live
-        document.getElementById("live").textContent = text;
+        data.results.forEach(text => {
+          // Show as live text
+          document.getElementById("live").textContent = text;
 
-        // Move to history
-        const div = document.createElement("div");
-        div.className = "line";
-        div.textContent = text;
+          // Add to history
+          const div = document.createElement("div");
+          div.className = "line";
+          div.textContent = text;
+          document.getElementById("history").appendChild(div);
 
-        document.getElementById("history").appendChild(div);
-
-        // Clear live line after commit
-        setTimeout(() => {
-          document.getElementById("live").textContent = "";
-        }, 300);
-      });
+          // Clear live text shortly after
+          setTimeout(() => {
+            document.getElementById("live").textContent = "";
+          }, 300);
+        });
+      } catch (err) {
+        document.getElementById("status").textContent = "❌ Connection lost";
+        stopListening();
+      }
     }
   </script>
+
 </body>
 </html>
